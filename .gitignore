@@ -1,0 +1,6 @@
+# Arquivos de ambiente
+.env
+
+# Outros arquivos comuns
+*.log
+dump/
