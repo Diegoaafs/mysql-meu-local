@@ -4,15 +4,15 @@ services:
     container_name: mysql-shoplive
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_ROOT_HOST: '%'
+      MYSQL_ROOT_HOST: '127.0.0.1'
       MYSQL_USER: ${LOCAL_USER}
       MYSQL_PASSWORD: ${LOCAL_PASS}
     ports:
-      - "${OLD_ECOM_PORT}:3306"
+      - "127.0.0.1:${OLD_ECOM_PORT}:3306"
     volumes:
       - old_ecom_data:/var/lib/mysql
     restart: unless-stopped
-    command: --bind-address=0.0.0.0 --default-authentication-plugin=mysql_native_password --sql-mode=${MYSQL_SQL_MODE}
+    command: --default-authentication-plugin=mysql_native_password --sql-mode=${MYSQL_SQL_MODE}
     networks:
       - shoplive
       - ecommerce
@@ -22,15 +22,15 @@ services:
     container_name: mysql-cross-prod
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_ROOT_HOST: '%'
+      MYSQL_ROOT_HOST: '127.0.0.1'
       MYSQL_USER: ${LOCAL_USER}
       MYSQL_PASSWORD: ${LOCAL_PASS}
     ports:
-      - "${CROSS_PROD_PORT}:3306"
+      - "127.0.0.1:${CROSS_PROD_PORT}:3306"
     volumes:
       - cross_prod_data:/var/lib/mysql
     restart: unless-stopped
-    command: --bind-address=0.0.0.0 --default-authentication-plugin=mysql_native_password --sql-mode=${MYSQL_SQL_MODE}
+    command: --default-authentication-plugin=mysql_native_password --sql-mode=${MYSQL_SQL_MODE}
     networks:
       - shoplive
       - ecommerce

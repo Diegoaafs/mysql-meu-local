@@ -60,7 +60,7 @@ EXCLUDE_TABLES="
 mkdir -p ./dump
 
 # Obter todas as tabelas do banco de produção
-ALL_TABLES=$(mysql -h $SRC_HOST -u $SRC_USER -p"$SRC_PASS" -N -e "SHOW TABLES" $SRC_DB)
+ALL_TABLES=$(mysql -h "$SRC_HOST" -u "$SRC_USER" -p"$SRC_PASS" -N -e "SHOW TABLES" "$SRC_DB")
 
 # Filtrar as tabelas excluídas
 TABLES=""
@@ -88,7 +88,7 @@ if [ -z "$TABLES" ]; then
 fi
 
 # Criar banco local se não existir
-mysql -h 127.0.0.1 -P $LOCAL_PORT -u root -prootpassword -e "CREATE DATABASE IF NOT EXISTS $LOCAL_DB; GRANT ALL PRIVILEGES ON $LOCAL_DB.* TO '$LOCAL_USER'@'%';"
+mysql -h 127.0.0.1 -P "$LOCAL_PORT" -u root -p"$MYSQL_ROOT_PASSWORD" -e "CREATE DATABASE IF NOT EXISTS \`$LOCAL_DB\`; GRANT ALL PRIVILEGES ON \`$LOCAL_DB\`.* TO '$LOCAL_USER'@'%';"
 
 VIEWS=""
 
@@ -98,7 +98,7 @@ for table in $TABLES; do
   echo "Processando tabela: $table"
 
   # Verificar se é uma view (views serão processadas depois)
-  TABLE_TYPE=$(mysql -h $SRC_HOST -u $SRC_USER -p"$SRC_PASS" -N -e "SELECT TABLE_TYPE FROM information_schema.TABLES WHERE TABLE_SCHEMA='$SRC_DB' AND TABLE_NAME='$table';" 2>/dev/null)
+  TABLE_TYPE=$(mysql -h "$SRC_HOST" -u "$SRC_USER" -p"$SRC_PASS" -N -e "SELECT TABLE_TYPE FROM information_schema.TABLES WHERE TABLE_SCHEMA='$SRC_DB' AND TABLE_NAME='$table';" 2>/dev/null)
   if [ "$TABLE_TYPE" == "VIEW" ]; then
     VIEWS="$VIEWS $table"
     echo "  - View detectada, será replicada após as tabelas: $table"
@@ -107,7 +107,7 @@ for table in $TABLES; do
 
   # Dump da tabela de produção
   echo "  - Fazendo dump de $table do banco de produção..."
-  mysqldump -h $SRC_HOST -u $SRC_USER -p"$SRC_PASS" --set-gtid-purged=OFF --skip-triggers $SRC_DB $table > ./dump/${table}.sql
+  mysqldump -h "$SRC_HOST" -u "$SRC_USER" -p"$SRC_PASS" --set-gtid-purged=OFF --skip-triggers "$SRC_DB" "$table" > "./dump/${table}.sql"
 
   if [ $? -ne 0 ]; then
     echo "Erro ao fazer dump de $table. Verifique as credenciais e conexão."
@@ -123,15 +123,15 @@ for table in $TABLES; do
 
   # Importar para banco local
   echo "  - Importando $table para o banco local..."
-  mysql -h 127.0.0.1 -P $LOCAL_PORT -u $LOCAL_USER -p"$LOCAL_PASS" $LOCAL_DB < ./dump/${table}.sql
+  mysql -h 127.0.0.1 -P "$LOCAL_PORT" -u "$LOCAL_USER" -p"$LOCAL_PASS" "$LOCAL_DB" < "./dump/${table}.sql"
 
   if [ $? -ne 0 ]; then
     echo "  - Erro ao importar $table com dados. Tentando criar apenas a estrutura..."
     # Dump apenas a estrutura da tabela
-    mysqldump -h $SRC_HOST -u $SRC_USER -p"$SRC_PASS" --set-gtid-purged=OFF --skip-triggers --no-data $SRC_DB $table > ./dump/${table}_structure.sql
-    if [ $? -eq 0 ] && [ -s ./dump/${table}_structure.sql ]; then
+    mysqldump -h "$SRC_HOST" -u "$SRC_USER" -p"$SRC_PASS" --set-gtid-purged=OFF --skip-triggers --no-data "$SRC_DB" "$table" > "./dump/${table}_structure.sql"
+    if [ $? -eq 0 ] && [ -s "./dump/${table}_structure.sql" ]; then
       # Importar apenas a estrutura
-      mysql -h 127.0.0.1 -P $LOCAL_PORT -u $LOCAL_USER -p"$LOCAL_PASS" $LOCAL_DB < ./dump/${table}_structure.sql
+      mysql -h 127.0.0.1 -P "$LOCAL_PORT" -u "$LOCAL_USER" -p"$LOCAL_PASS" "$LOCAL_DB" < "./dump/${table}_structure.sql"
       if [ $? -eq 0 ]; then
         echo "  - Estrutura da tabela $table criada com sucesso (sem dados)."
         rm ./dump/${table}.sql ./dump/${table}_structure.sql
@@ -179,7 +179,7 @@ for table in $EXCLUDED_TABLES; do
   echo "Processando tabela excluída: $table"
 
   # Verificar se é uma view (views serão processadas no bloco de views)
-  TABLE_TYPE=$(mysql -h $SRC_HOST -u $SRC_USER -p"$SRC_PASS" -N -e "SELECT TABLE_TYPE FROM information_schema.TABLES WHERE TABLE_SCHEMA='$SRC_DB' AND TABLE_NAME='$table';" 2>/dev/null)
+  TABLE_TYPE=$(mysql -h "$SRC_HOST" -u "$SRC_USER" -p"$SRC_PASS" -N -e "SELECT TABLE_TYPE FROM information_schema.TABLES WHERE TABLE_SCHEMA='$SRC_DB' AND TABLE_NAME='$table';" 2>/dev/null)
   if [ "$TABLE_TYPE" == "VIEW" ]; then
     VIEWS="$VIEWS $table"
     echo "  - View excluída detectada, será replicada após as tabelas: $table"
@@ -187,11 +187,11 @@ for table in $EXCLUDED_TABLES; do
   fi
 
   # Dump apenas a estrutura da tabela
-  mysqldump -h $SRC_HOST -u $SRC_USER -p"$SRC_PASS" --set-gtid-purged=OFF --skip-triggers --no-data $SRC_DB $table > ./dump/${table}_structure.sql
+  mysqldump -h "$SRC_HOST" -u "$SRC_USER" -p"$SRC_PASS" --set-gtid-purged=OFF --skip-triggers --no-data "$SRC_DB" "$table" > "./dump/${table}_structure.sql"
 
-  if [ $? -eq 0 ] && [ -s ./dump/${table}_structure.sql ]; then
+  if [ $? -eq 0 ] && [ -s "./dump/${table}_structure.sql" ]; then
     # Importar apenas a estrutura
-    mysql -h 127.0.0.1 -P $LOCAL_PORT -u $LOCAL_USER -p"$LOCAL_PASS" $LOCAL_DB < ./dump/${table}_structure.sql
+    mysql -h 127.0.0.1 -P "$LOCAL_PORT" -u "$LOCAL_USER" -p"$LOCAL_PASS" "$LOCAL_DB" < "./dump/${table}_structure.sql"
     if [ $? -eq 0 ]; then
       echo "  - Estrutura da tabela excluída $table criada com sucesso."
       rm ./dump/${table}_structure.sql
@@ -209,10 +209,10 @@ if [ -n "$VIEWS" ]; then
   echo "Replicando views: $VIEWS"
   for view in $VIEWS; do
     echo "  - Fazendo dump da view $view..."
-    mysqldump -h $SRC_HOST -u $SRC_USER -p"$SRC_PASS" --set-gtid-purged=OFF --skip-triggers $SRC_DB $view > ./dump/${view}_view.sql
+    mysqldump -h "$SRC_HOST" -u "$SRC_USER" -p"$SRC_PASS" --set-gtid-purged=OFF --skip-triggers "$SRC_DB" "$view" > "./dump/${view}_view.sql"
 
-    if [ $? -eq 0 ] && [ -s ./dump/${view}_view.sql ]; then
-      mysql -h 127.0.0.1 -P $LOCAL_PORT -u $LOCAL_USER -p"$LOCAL_PASS" $LOCAL_DB < ./dump/${view}_view.sql
+    if [ $? -eq 0 ] && [ -s "./dump/${view}_view.sql" ]; then
+      mysql -h 127.0.0.1 -P "$LOCAL_PORT" -u "$LOCAL_USER" -p"$LOCAL_PASS" "$LOCAL_DB" < "./dump/${view}_view.sql"
       if [ $? -eq 0 ]; then
         echo "  - View $view replicada com sucesso."
       else
@@ -230,7 +230,7 @@ fi
 
 DUMP_FILE="./dump/${LOCAL_DB}_$(date +%H%M%S).sql"
 echo "Criando dump completo do banco local..."
-mysqldump -h 127.0.0.1 -P $LOCAL_PORT -u $LOCAL_USER -p"$LOCAL_PASS" $LOCAL_DB > "$DUMP_FILE"
+mysqldump -h 127.0.0.1 -P "$LOCAL_PORT" -u "$LOCAL_USER" -p"$LOCAL_PASS" "$LOCAL_DB" > "$DUMP_FILE"
 
 if [ $? -eq 0 ]; then
   echo "Dump completo criado em $DUMP_FILE"
