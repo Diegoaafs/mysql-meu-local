@@ -64,5 +64,12 @@ else
   sleep 15
 fi
 
+# Garantir que o usuário local tenha privilégio para alterar variáveis globais
+# (ex.: SET GLOBAL log_bin_trust_function_creators). Idempotente.
+echo "Garantindo privilégios SYSTEM_VARIABLES_ADMIN para $LOCAL_USER..."
+docker exec "$CONTAINER" mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e \
+  "GRANT SYSTEM_VARIABLES_ADMIN, SESSION_VARIABLES_ADMIN ON *.* TO '$LOCAL_USER'@'%'; FLUSH PRIVILEGES;" 2>/dev/null \
+  || echo "Aviso: não foi possível conceder privilégios (container pode não estar pronto)."
+
 # Executar a replicação apenas do banco escolhido
 ./replicate.sh "$REPLICATE_ARG"

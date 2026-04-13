@@ -11,8 +11,9 @@ services:
       - "127.0.0.1:${OLD_ECOM_PORT}:3306"
     volumes:
       - old_ecom_data:/var/lib/mysql
+      - ./init:/docker-entrypoint-initdb.d:ro
     restart: unless-stopped
-    command: --default-authentication-plugin=mysql_native_password --sql-mode=${MYSQL_SQL_MODE}
+    command: --default-authentication-plugin=mysql_native_password --sql-mode=${MYSQL_SQL_MODE} --log-bin-trust-function-creators=ON
     networks:
       - shoplive
       - ecommerce
@@ -29,8 +30,9 @@ services:
       - "127.0.0.1:${CROSS_PROD_PORT}:3306"
     volumes:
       - cross_prod_data:/var/lib/mysql
+      - ./init:/docker-entrypoint-initdb.d:ro
     restart: unless-stopped
-    command: --default-authentication-plugin=mysql_native_password --sql-mode=${MYSQL_SQL_MODE}
+    command: --default-authentication-plugin=mysql_native_password --sql-mode=${MYSQL_SQL_MODE} --log-bin-trust-function-creators=ON
     networks:
       - shoplive
       - ecommerce

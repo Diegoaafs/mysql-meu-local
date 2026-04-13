@@ -16,6 +16,7 @@ case "$DB_CHOICE" in
     SRC_DB="$PROD_DB"
     LOCAL_PORT="$OLD_ECOM_PORT"
     LOCAL_DB_PREFIX="shoplive"
+    FUNCTIONS="fn_nomeLocalRetirada"
     echo "Replicando de: PROD OLD ECOM ($SRC_DB) -> porta local $LOCAL_PORT"
     ;;
   cross-prod)
@@ -25,6 +26,7 @@ case "$DB_CHOICE" in
     SRC_DB="$CROSS_DB"
     LOCAL_PORT="$CROSS_PROD_PORT"
     LOCAL_DB_PREFIX="shopify"
+    FUNCTIONS=""
     echo "Replicando de: CROSS PROD ($SRC_DB) -> porta local $LOCAL_PORT"
     ;;
   *)
@@ -228,9 +230,57 @@ else
   echo "Nenhuma view encontrada para replicar."
 fi
 
+# Replicar funções específicas listadas em $FUNCTIONS
+if [ -n "$FUNCTIONS" ]; then
+  echo "Replicando funções: $FUNCTIONS"
+  for func in $FUNCTIONS; do
+    echo "  - Extraindo função $func..."
+    FUNC_FILE="./dump/${func}_function.sql"
+
+    # Extrai o CREATE FUNCTION do SHOW CREATE FUNCTION (formato vertical \G)
+    mysql -h "$SRC_HOST" -u "$SRC_USER" -p"$SRC_PASS" --skip-column-names \
+      -e "SHOW CREATE FUNCTION \`$func\`\G" "$SRC_DB" 2>/dev/null | \
+      awk '
+        /^[[:space:]]*Create Function:/ {
+          sub(/^[[:space:]]*Create Function: /, "")
+          cap = 1
+        }
+        /^[[:space:]]*character_set_client:/ { cap = 0 }
+        cap { print }
+      ' > "$FUNC_FILE"
+
+    if [ ! -s "$FUNC_FILE" ]; then
+      echo "  - Não foi possível obter a função $func (não existe ou sem permissão). Pulando."
+      rm -f "$FUNC_FILE"
+      continue
+    fi
+
+    # Remove DEFINER=`user`@`host` para evitar erro de permissão ao importar
+    sed -i 's/DEFINER=`[^`]*`@`[^`]*` //g' "$FUNC_FILE"
+
+    # Envolve em DROP IF EXISTS + DELIMITER para o client mysql processar BEGIN...END
+    {
+      echo "DROP FUNCTION IF EXISTS \`$func\`;"
+      echo "DELIMITER \$\$"
+      cat "$FUNC_FILE"
+      echo "\$\$"
+      echo "DELIMITER ;"
+    } > "${FUNC_FILE}.wrapped"
+    mv "${FUNC_FILE}.wrapped" "$FUNC_FILE"
+
+    mysql -h 127.0.0.1 -P "$LOCAL_PORT" -u "$LOCAL_USER" -p"$LOCAL_PASS" "$LOCAL_DB" < "$FUNC_FILE"
+    if [ $? -eq 0 ]; then
+      echo "  - Função $func replicada com sucesso."
+      rm "$FUNC_FILE"
+    else
+      echo "  - Erro ao importar função $func. Dump preservado em $FUNC_FILE."
+    fi
+  done
+fi
+
 DUMP_FILE="./dump/${LOCAL_DB}_$(date +%H%M%S).sql"
 echo "Criando dump completo do banco local..."
-mysqldump -h 127.0.0.1 -P "$LOCAL_PORT" -u "$LOCAL_USER" -p"$LOCAL_PASS" "$LOCAL_DB" > "$DUMP_FILE"
+mysqldump -h 127.0.0.1 -P "$LOCAL_PORT" -u "$LOCAL_USER" -p"$LOCAL_PASS" --routines --set-gtid-purged=OFF "$LOCAL_DB" > "$DUMP_FILE"
 
 if [ $? -eq 0 ]; then
   echo "Dump completo criado em $DUMP_FILE"
